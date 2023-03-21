@@ -9,4 +9,4 @@ print("View: ", yt.view)
 
 yd = yt.streams.get_highest_resolution()
 
-yd.download('./youTubeDownload')
+yd.download('./YouTubeDownload')

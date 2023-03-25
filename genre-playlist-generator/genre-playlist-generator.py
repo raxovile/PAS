@@ -17,6 +17,30 @@ def authenticate_spotify(config):
                                                scope=config["SCOPE"],
                                                username=config["username"]))
 
+def fetch_all_tracks_from_spotify(sp):
+    results = sp.databaserent_user_saved_tracks()
+    all_songs = []
+    while results:
+        for item in results['items']:
+            track = item['track']
+            song_id = track['id']
+            song_name = track['name']
+            song_artist = track['artists'][0]['name']
+            song_album = track['album']['name']
+            song_genres = sp.artist(track['artists'][0]['id'])['genres']
+            song = {
+                "id": song_id,
+                "name": song_name,
+                "artist": song_artist,
+                "album": song_album,
+                "genres": song_genres
+            }
+            all_songs.append(song)
+        if results['next']:
+            results = sp.next(results)
+        else:
+            results = None
+    return all_songs
 
 def main():
     config = get_configuration()

@@ -1,4 +1,8 @@
 import os
+import os
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+
 
 def get_configuration():
     root_dir = os.getcwd()

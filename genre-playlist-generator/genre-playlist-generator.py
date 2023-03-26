@@ -1,7 +1,8 @@
-import os
+import json
 import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+import psycopg2
 
 
 def get_configuration():
@@ -41,6 +42,17 @@ def fetch_all_tracks_from_spotify(sp):
         else:
             results = None
     return all_songs
+
+def add_all_songs_into_database(config, sp):
+    all_songs = fetch_all_tracks_from_spotify(sp)
+
+    conn = psycopg2.connect(
+    host=config["HOST"],
+    database=config["DATEBASE"],
+    user=config["USER"],
+    password=config["PASSWORD"]
+    )
+
 
 def main():
     config = get_configuration()

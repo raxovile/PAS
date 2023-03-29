@@ -73,12 +73,12 @@ def add_all_songs_into_database(config):
     database.execute("CREATE TABLE IF NOT EXISTS genres (id SERIAL PRIMARY KEY, name VARCHAR(255))")
 
     # Tabelle "songs" erstellen
-    database.execute("CREATE TABLE IF NOT EXISTS songs (id SERIAL PRIMARY KEY, name VARCHAR(255), artist_id INTEGER REFERENCES artists (id) ON DELETE CASCADE, album_id INTEGER REFERENCES albums (id) ON DELETE CASCADE, genre_ids INTEGER REFERENCES genres (id) ON DELETE CASCADE)")
+    database.execute("CREATE TABLE IF NOT EXISTS songs (id SERIAL PRIMARY KEY, name VARCHAR(255), artist_id INTEGER REFERENCES artists (id) ON DELETE CASCADE, album_id INTEGER REFERENCES albums (id) ON DELETE CASCADE, genre_id INTEGER REFERENCES genres (id) ON DELETE CASCADE)")
 
     for idx,song in enumerate(all_songs):
         # Artist einfügen oder falls schon vorhanden die ID abrufen
         print(f"Start processing song {idx} from {len(all_songs)}")
-
+    
         database.execute("SELECT id FROM artists WHERE name = %s", (song['artist'],))
         result = database.fetchone()
         if result is None:
@@ -86,7 +86,7 @@ def add_all_songs_into_database(config):
             artist_id = database.fetchone()[0]
         else:
             artist_id = result[0]
-
+    
         # Album einfügen oder falls schon vorhanden die ID abrufen
         database.execute("SELECT id FROM albums WHERE name = %s AND artist_id = %s", (song['album'], artist_id))
         result = database.fetchone()
@@ -95,21 +95,20 @@ def add_all_songs_into_database(config):
             album_id = database.fetchone()[0]
         else:
             album_id = result[0]
-
+    
         # Genre(s) einfügen oder falls schon vorhanden die ID(s) abrufen
-        genre_ids = []
         for genre in song['genres']:
             database.execute("SELECT id FROM genres WHERE name = %s", (genre,))
             result = database.fetchone()
             if result is None:
                 database.execute("INSERT INTO genres (name) VALUES (%s) RETURNING id", (genre,))
-                genre_ids.append(database.fetchone()[0])
+                genre_id = database.fetchone()[0]
             else:
-                genre_ids.append(result[0])
+                genre_id = result[0]
+            # Song einfügen
+            database.execute("INSERT INTO songs (name, artist_id, album_id, genre_id) VALUES (%s, %s, %s, %s)", (song['name'], artist_id, album_id, genre_id) )
+    
 
-        # Song einfügen
-        genre_ids_str = ','.join(str(g) for g in genre_ids)
-        database.execute("INSERT INTO songs (name, artist_id, album_id, genre_ids) VALUES (%s, %s, %s, %s)", (song['name'], artist_id, album_id, genre_ids_str) )
 
 
 

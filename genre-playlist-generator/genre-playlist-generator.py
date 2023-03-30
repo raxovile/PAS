@@ -121,17 +121,18 @@ def create_genre_playlists():
         all_songs = json.load(f)
 
     playlists = {}
-    for word in genres:
-        if len(genres[word]['subgenres']) < 2:
+    for genre in genres:
+        if len(genres[genre]['subgenres']) < 2:
             continue
-        playlist_name = ' '.join(genres[word]['subgenres'])
+        playlist_name = genre
+
         playlist_songs = []
         for song in all_songs:
-            if any(genre.startswith(word) for genre in song['genres']):
+            if any(subgenre in genres[genre]['subgenres'] for subgenre in song['genres']):
                 playlist_songs.append({
                     'id': song['id'],
                     'name': song['name'],
-                    'genre': word
+                    'genre': genre
                 })
 
         if len(playlist_songs) >= 30:

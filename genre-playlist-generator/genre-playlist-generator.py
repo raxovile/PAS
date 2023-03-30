@@ -132,7 +132,8 @@ def create_genre_playlists():
                 playlist_songs.append({
                     'id': song['id'],
                     'name': song['name'],
-                    'genre': genre
+                    'genre': genre,
+                    'artist': song['artist'],
                 })
 
         if len(playlist_songs) >= 30:
@@ -146,13 +147,42 @@ def create_genre_playlists():
     with open('playlists.json', 'w', encoding='utf-8') as f:
         json.dump(playlists, f)
 
+def create_spotify_playlists(config):
+    # Authentifizierung mit SpotifyOAuth
+    sp = authenticate_spotify(config)
+
+    # Load playlists from file
+    with open('playlists.json', 'r', encoding='utf-8') as f:
+        playlists = json.load(f)
+        
+        counter = 0
+
+    # Create playlists in Spotify
+    for playlist_name in playlists:
+        if playlist_name == 'total_count':
+            continue
+        
+        playlist_id = sp.user_playlist_create(user=sp.current_user()['id'],
+                                               name=f'{counter:02d}-{playlist_name}',
+                                               public=True)['id']
+        
+        counter += 1
+
+        song_ids = [song['id'] for song in playlists[playlist_name]['songs']]
+        chunk_size = 100
+        for i in range(0, len(song_ids), chunk_size):
+            sp.user_playlist_add_tracks(user=sp.current_user()['id'],
+                                         playlist_id=playlist_id,
+                                         tracks=song_ids[i:i+chunk_size])
+            
+
 def main():
     config = get_configuration()
     # add_all_songs_into_json_file(config)s
-    get_all_genres_from_file()
-    group_genres_by_keyword()
-    create_genre_playlists()
-
+    # get_all_genres_from_file()
+    # group_genres_by_keyword()
+    # create_genre_playlists()
+    create_spotify_playlists(config)
 
 if __name__ == '__main__':
     main()

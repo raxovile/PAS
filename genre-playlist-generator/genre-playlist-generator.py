@@ -32,6 +32,7 @@ def fetch_all_tracks_from_spotify(sp):
             song_name = track['name']
             song_artist = track['artists'][0]['name']
             song_album = track['album']['name']
+
             song_genres = sp.artist(track['artists'][0]['id'])['genres']
             song = {
                 "id": song_id,

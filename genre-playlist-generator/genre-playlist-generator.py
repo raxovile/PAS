@@ -113,34 +113,31 @@ def group_genres_by_keyword():
         json.dump(grouped_dict, f)
     return grouped_dict
 
-def create_playlists_from_genres(config):
-    with open('genre_list.json', 'r', encoding='utf-8') as f:
-        genre_list = json.load(f)
-
+def create_genre_playlists():
     with open('all_songs.json', 'r', encoding='utf-8') as f:
         all_songs = json.load(f)
 
+    with open('genre_list.json', 'r', encoding='utf-8') as f:
+        genre_list = json.load(f)
+
     playlists = {}
-
-    # Initialisiere Playlists mit leeren Song-Arrays und Anzahl der Songs auf 0
-    for genre in genre_list:
-        playlist_name = "Playlist: " + genre
-        playlists[playlist_name] = {'songs': [], 'count': 0}
-
-    # Füge Songs zu den passenden Playlists hinzu
-    for song in all_songs:
-        song_genres = song['genres']
-        for genre in genre_list:
-            if any(word.lower() in genre.lower() for word in song_genres):
-                playlist_name = "Playlist: " + genre
-                playlists[playlist_name]['songs'].append({
-                    'name': song['name'],
-                    'id': song['id'],
-                    'genre': song_genres
+    for word in genre_list:
+        songs = []
+        count = 0
+        for song in all_songs:
+            if word in song['genres']:
+                songs.append({
+                    "name": song['name'],
+                    "id": song['id'],
+                    "genre": word
                 })
-                playlists[playlist_name]['count'] += 1
+                count += 1
+        if count >= 30:
+            playlists[word] = {
+                "songs": songs,
+                "count": count
+            }
 
-    # Speichere Playlists in einer JSON-Datei
     with open('playlists.json', 'w', encoding='utf-8') as f:
         json.dump(playlists, f)
 
@@ -148,9 +145,10 @@ def create_playlists_from_genres(config):
 
 def main():
     config = get_configuration()
-    # add_all_songs_into_json_file(config)
+    # add_all_songs_into_json_file(config)s
     get_all_genres_from_file()
     group_genres_by_keyword()
+    create_genre_playlists()
 
 
 if __name__ == '__main__':

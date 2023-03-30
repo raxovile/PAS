@@ -3,6 +3,7 @@ import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import psycopg2
+from difflib import SequenceMatcher
 
 
 def get_configuration():
@@ -50,72 +51,107 @@ def fetch_all_tracks_from_spotify(sp):
         counter =+ counter + 1
     return all_songs
 
-def add_all_songs_into_database(config):
+def add_all_songs_into_json_file(config):
     sp = authenticate_spotify(config)
     all_songs = fetch_all_tracks_from_spotify(sp)
 
-    conn = psycopg2.connect(
-    host=config["HOST"],
-    database=config["DATABASE"],
-    user=config["USER"],
-    password=config["PASSWORD"]
-    )
+    with open('all_songs.json', 'w', encoding = 'utf-8') as f:
+        json.dump(all_songs, f)
 
-      # databasesor erstellen
-    database = conn.cursor()
-
-    # Tabelle "artists" erstellen
-    database.execute("CREATE TABLE IF NOT EXISTS artists (id SERIAL PRIMARY KEY, name VARCHAR(255))")
-
-    # Tabelle "albums" erstellen
-    database.execute("CREATE TABLE IF NOT EXISTS albums (id SERIAL PRIMARY KEY, name VARCHAR(255), artist_id INTEGER REFERENCES artists (id) ON DELETE CASCADE)")
-
-    # Tabelle "genres" erstellen
-    database.execute("CREATE TABLE IF NOT EXISTS genres (id SERIAL PRIMARY KEY, name VARCHAR(255))")
-
-    # Tabelle "songs" erstellen
-    database.execute("CREATE TABLE IF NOT EXISTS songs (id SERIAL PRIMARY KEY, name VARCHAR(255), artist_id INTEGER REFERENCES artists (id) ON DELETE CASCADE, album_id INTEGER REFERENCES albums (id) ON DELETE CASCADE, genre_id INTEGER REFERENCES genres (id) ON DELETE CASCADE)")
-
-    for idx,song in enumerate(all_songs):
-        # Artist einfügen oder falls schon vorhanden die ID abrufen
-        print(f"Start processing song {idx} from {len(all_songs)}")
+def get_all_genres_from_file():
+    with open('all_songs.json', 'r') as f:
+        all_songs = json.load(f)
     
-        database.execute("SELECT id FROM artists WHERE name = %s", (song['artist'],))
-        result = database.fetchone()
-        if result is None:
-            database.execute("INSERT INTO artists (name) VALUES (%s) RETURNING id", (song['artist'],))
-            artist_id = database.fetchone()[0]
-        else:
-            artist_id = result[0]
-    
-        # Album einfügen oder falls schon vorhanden die ID abrufen
-        database.execute("SELECT id FROM albums WHERE name = %s AND artist_id = %s", (song['album'], artist_id))
-        result = database.fetchone()
-        if result is None:
-            database.execute("INSERT INTO albums (name, artist_id) VALUES (%s, %s) RETURNING id", (song['album'], artist_id))
-            album_id = database.fetchone()[0]
-        else:
-            album_id = result[0]
-    
-        # Genre(s) einfügen oder falls schon vorhanden die ID(s) abrufen
+    all_genres = {}
+    for song in all_songs:
         for genre in song['genres']:
-            database.execute("SELECT id FROM genres WHERE name = %s", (genre,))
-            result = database.fetchone()
-            if result is None:
-                database.execute("INSERT INTO genres (name) VALUES (%s) RETURNING id", (genre,))
-                genre_id = database.fetchone()[0]
+            if genre not in all_genres:
+                all_genres[genre] = 1
             else:
-                genre_id = result[0]
-            # Song einfügen
-            database.execute("INSERT INTO songs (name, artist_id, album_id, genre_id) VALUES (%s, %s, %s, %s)", (song['name'], artist_id, album_id, genre_id) )
+                all_genres[genre] += 1
     
+    # Sort the list of genres based on similarity in name
+    all_genres_list = [{'name': k, 'count': v} for k, v in all_genres.items()]
+    all_genres_list.sort(key=lambda x: SequenceMatcher(None, x['name'].lower(), 'genre').ratio(), reverse=True)
+    
+    with open('genre.json', 'w', encoding = 'utf-8') as f:
+        json.dump(all_genres, f)
 
+    return all_genres
 
+def group_genres_by_keyword():
+    with open('genre.json', 'r', encoding = 'utf-8') as f:
+       genres = json.load(f)
 
+    # Erstelle ein Wörterbuch, das jedem eindeutigen Wort im Genre-Namen eine Liste von Genres zuordnet, die das Wort enthalten
+    keyword_dict = {}
+    for genre in genres:
+        words = genre.split()
+        for word in words:
+            if word not in keyword_dict:
+                keyword_dict[word] = {'genres':[], 'count':0}
+            keyword_dict[word]['genres'].append(genre)
+            keyword_dict[word]['count'] += 1
+    
+    # Erstelle ein Wörterbuch, das jedem eindeutigen Wort im Genre-Namen eine Liste von Subgenres zuordnet, die das Wort enthalten
+    grouped_dict = {}
+    for word in keyword_dict:
+        grouped_dict[word] = {'subgenres':[], 'count': keyword_dict[word]['count']}
+        for genre in keyword_dict[word]['genres']:
+            subgenres = genre.split("/")
+            for subgenre in subgenres:
+                if subgenre not in grouped_dict[word]['subgenres']:
+                    grouped_dict[word]['subgenres'].append(subgenre)
+    
+    # Entferne Wörter, die nur in einem Subgenre vorkommen
+    for word in list(grouped_dict.keys()):
+        subgenres = grouped_dict[word]['subgenres']
+        if len(subgenres) == 1:
+            del grouped_dict[word]
+    
+    with open('genre_list.json', 'w', encoding = 'utf-8') as f:
+        json.dump(grouped_dict, f)
+    return grouped_dict
+
+def create_playlists_from_genres(config):
+    with open('genre_list.json', 'r', encoding='utf-8') as f:
+        genre_list = json.load(f)
+
+    with open('all_songs.json', 'r', encoding='utf-8') as f:
+        all_songs = json.load(f)
+
+    playlists = {}
+
+    # Initialisiere Playlists mit leeren Song-Arrays und Anzahl der Songs auf 0
+    for genre in genre_list:
+        playlist_name = "Playlist: " + genre
+        playlists[playlist_name] = {'songs': [], 'count': 0}
+
+    # Füge Songs zu den passenden Playlists hinzu
+    for song in all_songs:
+        song_genres = song['genres']
+        for genre in genre_list:
+            if any(word.lower() in genre.lower() for word in song_genres):
+                playlist_name = "Playlist: " + genre
+                playlists[playlist_name]['songs'].append({
+                    'name': song['name'],
+                    'id': song['id'],
+                    'genre': song_genres
+                })
+                playlists[playlist_name]['count'] += 1
+
+    # Speichere Playlists in einer JSON-Datei
+    with open('playlists.json', 'w', encoding='utf-8') as f:
+        json.dump(playlists, f)
+
+    return playlists
 
 def main():
     config = get_configuration()
-    add_all_songs_into_database(config)
+    # add_all_songs_into_json_file(config)
+    get_all_genres_from_file()
+    group_genres_by_keyword()
+
 
 if __name__ == '__main__':
     main()

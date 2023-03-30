@@ -114,34 +114,36 @@ def group_genres_by_keyword():
     return grouped_dict
 
 def create_genre_playlists():
+    with open('genre_list.json', 'r', encoding='utf-8') as f:
+        genres = json.load(f)
+
     with open('all_songs.json', 'r', encoding='utf-8') as f:
         all_songs = json.load(f)
 
-    with open('genre_list.json', 'r', encoding='utf-8') as f:
-        genre_list = json.load(f)
-
     playlists = {}
-    for word in genre_list:
-        songs = []
-        count = 0
+    for word in genres:
+        if len(genres[word]['subgenres']) < 2:
+            continue
+        playlist_name = ' '.join(genres[word]['subgenres'])
+        playlist_songs = []
         for song in all_songs:
-            if word in song['genres']:
-                songs.append({
-                    "name": song['name'],
-                    "id": song['id'],
-                    "genre": word
+            if any(genre.startswith(word) for genre in song['genres']):
+                playlist_songs.append({
+                    'id': song['id'],
+                    'name': song['name'],
+                    'genre': word
                 })
-                count += 1
-        if count >= 30:
-            playlists[word] = {
-                "songs": songs,
-                "count": count
+
+        if len(playlist_songs) >= 30:
+            playlists[playlist_name] = {
+                'songs': playlist_songs,
+                'song_count': len(playlist_songs)
             }
+
+    playlists['total_count'] = len(playlists)
 
     with open('playlists.json', 'w', encoding='utf-8') as f:
         json.dump(playlists, f)
-
-    return playlists
 
 def main():
     config = get_configuration()
